@@ -30,6 +30,12 @@ async function run() {
     const productCollection = client.db('productsItem').collection('products')
 
 
+    app.get('/addQuery', async(req, res)=>{
+      const cursor = productCollection.find().limit(6)
+      const result = await cursor.toArray()
+      res.send(result)
+    })
+
     app.get('/addQueries', async(req, res)=>{
       const cursor = productCollection.find()
       const result = await cursor.toArray()
