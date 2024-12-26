@@ -28,6 +28,7 @@ async function run() {
 
     await client.connect();
     const productCollection = client.db('productsItem').collection('products')
+    const reProductCollection = client.db('reProductsItem').collection('reProducts')
 
 
     app.get('/addQuery', async(req, res)=>{
@@ -37,8 +38,57 @@ async function run() {
     })
 
     app.get('/addQueries', async(req, res)=>{
-      const cursor = productCollection.find()
+      const search = req.query.search
+      // console.log(search)
+      let query = {};
+      if (search) {
+        query = {
+          productName: {
+            $regex: search,
+            $options: 'i', // Case-insensitive search
+          },
+        };
+      }
+      const cursor = productCollection.find(query)
       const result = await cursor.toArray()
+      res.send(result)
+    })
+
+    app.get('/addRecommendation', async(req, res) =>{
+      const cursor = reProductCollection.find()
+      const result = await cursor.toArray()
+      res.send(result)
+    })
+    // app.get('/myRecommendation', async(req, res) =>{
+    //   const cursor = reProductCollection.find()
+    //   const result = await cursor.toArray()
+    //   res.send(result)
+    // })
+
+    app.get('/addRecommendation/:queryId', async(req, res) =>{
+      const id = req.params.queryId 
+      if(!id){
+        return res.status(400).send({ message: 'Email is required.'})
+      }
+      const cursor = reProductCollection.find({ queryId : id})
+      const result = await cursor.toArray()
+      if(result.length === 0){
+        return res.status(404).send({message: 'Unfortunately, No Product found for this user.'})
+      }
+      res.send(result)
+    })
+
+    app.get('/myRecommendation/:email', async(req, res) =>{
+      const email = req.params.email
+      console.log(email)
+      if(!email){
+        return res.status(400).send({ message: "Email is require."})
+      }
+      const cursor = reProductCollection.find({ recommenderEmail : email})
+      const result = await cursor.toArray()
+      if(result.length === 0){
+        return res.status(404).send({ message: "Unfortunately, No Product found for this user."})
+      }
       res.send(result)
     })
 
@@ -56,6 +106,13 @@ async function run() {
       res.send(result)
     })
 
+    app.post('/addRecommendation', async(req, res) =>{
+      const newReQueries = req.body
+      console.log(newReQueries)
+      const result = await reProductCollection.insertOne(newReQueries)
+      res.send(result)
+    })
+
     app.get('/queries/:email', async(req, res) =>{
       const email = req.params.email
       // console.log(email)
@@ -70,7 +127,7 @@ async function run() {
       }
       res.send(result)
     })
-
+    
     app.put('/queries/:id', async(req, res) =>{
       const id = req.params.id
       const filter = {_id: new ObjectId(id)}
@@ -94,12 +151,57 @@ async function run() {
       res.send(result)
     })
 
+    app.put('/incrementRecommendation/:id', async(req, res) =>{
+      const id = req.params.id
+      const filter = { _id: new ObjectId(id)}
+      const updateDoc = {
+        $inc: { recommendationCount: 1}
+      }
+
+      try{
+        const result = await productCollection.updateOne(filter, updateDoc)
+        if(result.modifiedCount > 0){
+          res.status(200).send({ message: 'Recommendation count update successfull'})
+        }else{
+          res.status(404).send({ message: 'No Document found'})
+        }
+      }
+      catch(error){
+        res.status(500).send({ error: error.message})
+      }
+    })
+    app.put('/decreaseRecommendation/:id', async(req, red) =>{
+      const id = req.params.id
+      const filter = { _id: new ObjectId(id)}
+      const updateDoc = {
+        $inc: { recommendationCount: -1}
+      }
+
+      try{
+        const result = await productCollection.updateOne(filter, updateDoc)
+        if(result.modifiedCount > 0){
+          res.status(200).send({ message: 'Recommendation count update successfull'})
+        }else{
+          res.status(404).send({ message: 'No Document found.'})
+        }
+      }
+      catch(error){
+        res.status(500).send({ error: error.message})
+      }
+    })
     
 
     app.delete('/queries/:id', async(req, res)=>{
       const id = req.params.id 
       const query = { _id: new ObjectId(id) }
       const result = await productCollection.deleteOne(query)
+      res.send(result)
+    })
+
+    app.delete('/myRecommendation/:id', async(req, res) =>{
+      const id = req.params.id
+      const query = { _id: new ObjectId(id) }
+      const result = await reProductCollection.deleteOne(query)
       res.send(result)
     })
     // Connect the client to the server	(optional starting in v4.7)
