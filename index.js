@@ -49,7 +49,7 @@ async function run() {
           },
         };
       }
-      const cursor = productCollection.find(query)
+      const cursor = productCollection.find(query).sort({ readableDate: -1 })
       const result = await cursor.toArray()
       res.send(result)
     })
