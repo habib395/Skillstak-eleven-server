@@ -1,12 +1,34 @@
 require('dotenv').config()
 const express = require('express')
 const cors = require('cors')
+const jwt = require('jsonwebtoken')
+const cookieParser = require('cookie-parser')
 const app = express()
 const port = process.env.PORT || 5000
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 
-app.use(cors())
+app.use(cors({
+  origin: ['http://localhost:5174'],
+  credentials: true
+}))
 app.use(express.json())
+app.use(cookieParser())
+
+const verifyToken = (req, res, next) => {
+  const token = req.cookies.token 
+  if(!token){
+    return res.status(401).send({message: 'unauthorized access'})
+  }
+
+  jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, decoded) => {
+    if(err){
+      return res.status(401).send({message: 'unauthorized access'})
+    }
+    req.user = decoded
+    next()
+  })
+  console.log('token inside the verifyToken', token)
+}
 
 
 
@@ -28,6 +50,29 @@ async function run() {
     const productCollection = client.db('productsItem').collection('products')
     const reProductCollection = client.db('productsItem').collection('reProducts')
 
+    //auth related api
+    app.post('/jwt', (req, res) =>{
+      const user = req.body
+      const token = jwt.sign(user, process.env.ACCESS_TOKEN_SECRET, {
+        expiresIn: '5h'
+      })
+
+      res.cookie('token', token, {
+        httpOnly: true,
+        secure: false
+      })
+      .send({ success: true})
+    })
+
+    app.post('/logout', (req, res) =>{
+      res
+      .clearCookie('token', {
+        httpOnly: true,
+        secure: false
+      })
+      .send({ success: true})
+    })
+
 
     app.get('/addQuery', async(req, res)=>{
       const cursor = productCollection.find().limit(6)
@@ -35,7 +80,7 @@ async function run() {
       res.send(result)
     })
 
-    app.get('/addQueries', async(req, res)=>{
+    app.get('/addQueries', verifyToken, async(req, res)=>{
       const search = req.query.search
       // console.log(search)
       let query = {};
@@ -72,21 +117,25 @@ async function run() {
       res.send(result)
     })
 
-    app.get('/myRecommendation/:email', async(req, res) =>{
+    app.get('/myRecommendation/:email', verifyToken, async(req, res) =>{
       try{
         const email = req.params.email
-      console.log(email)
-   
+      // console.log(email)
+      console.log(req.cookies?.token)
+      if(req.user.email !== req.params.email){
+        return res.status(403).send({message: 'Forbidden access'})
+      }
+      
       const cursor = reProductCollection.find({ recommenderEmail : email})
       const result = await cursor.toArray()
-   
+      
       res.send(result)
-      }catch(error){
-        console.log(error)
-        if (!res.headersSent) {
-          res.status(500).send('Error fetching sorted data');
-        }
+    }catch(error){
+      console.log(error)
+      if (!res.headersSent) {
+        res.status(500).send('Error fetching sorted data');
       }
+    }
     })
 
     app.get('/queries/:email/:id', async(req, res) => {
@@ -111,7 +160,7 @@ async function run() {
       res.send(result)
     })
 
-    app.get('/queries/:email', async(req, res) =>{
+    app.get('/queries/:email', verifyToken, async(req, res) =>{
       const email = req.params.email
       // console.log(email)
       if(!email){
@@ -211,9 +260,7 @@ async function run() {
       }
       res.send(result)
     })
-    // Connect the client to the server	(optional starting in v4.7)
-    // Send a ping to confirm a successful connection
-    // await client.db("admin").command({ ping: 1 });
+
     console.log("Pinged your deployment. You successfully connected to MongoDB!");
   } finally {
     // Ensures that the client will close when you finish/error
@@ -232,3 +279,7 @@ app.listen(port, ()=>{
     console.log(`Job is waiting at: ${port}`)
 })
 
+
+
+// http://localhost:5000/myRecommendation/md.habiburrahmanjwd@gmail.com
+// https://localhost:5000/myRecommendation/md.habiburrahmanjwd@gmail.com
