@@ -94,7 +94,7 @@ async function run() {
             $options: 'i', 
           },
         };
-      }
+      }=
       const cursor = productCollection.find(query).sort({ readableDate: -1 })
       const result = await cursor.toArray()
       res.send(result)
@@ -215,6 +215,8 @@ async function run() {
         res.status(500).send({ error: error.message})
       }
     })
+
+    
     app.put('/decreaseRecommendation/:id', async(req, red) =>{
       const id = req.params.id
       console.log(id)
